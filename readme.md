@@ -1,0 +1,1 @@
+The rendered html file of the code is [here:](https://ssozcan.github.io/PracticalMachineLearning/Practical_ML_Project.html) 
