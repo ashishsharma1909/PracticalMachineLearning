@@ -1,0 +1,119 @@
+---
+title: "Human Activity Recognition Project"
+output: html_document
+---
+Sinan Ozcan
+ 
+18 March 2018 
+
+# Coursera Practical Machine Learning Final Project 
+
+## Executive Summary
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activityrelatively inexpensively. These types of devices are part of the quantified self movement. One thing people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project our goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data is available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data is available gere: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+## Load necessary packages and read the data
+
+```{r}
+# Load the caret package
+library(caret)
+library(knitr)
+# Read the data
+training<-read.csv("pml-training.csv",header = T)
+testing<-read.csv("pml-testing.csv",header = T)
+```
+
+## Exploratory Analysis
+
+Lets have a look at the dimensions of the training and testing sets. And explore whether there are any missing values.
+
+```{r}
+dim(training)
+sum(complete.cases(training))
+dim(testing)
+sum(complete.cases(testing))
+```
+
+So there are missing values in both sets. Lets explore more deeply.
+
+```{r}
+trainMissing <- is.na.data.frame(training)
+trainMissing2 <- apply(trainMissing, 2, sum) 
+testMissing <- is.na.data.frame(testing)
+testMissing2 <- apply(testMissing, 2, sum)
+par(mfrow=c(1,2))
+plot(trainMissing2, xlab = "Variables", ylab = "Number of NAs") 
+plot(testMissing2, xlab = "Variables", ylab = "Number of NAs")
+mtext("Columns with Missing Values in Training and Testing Sets",side = 3,line = -3,outer = T,font = 2)
+```
+
+As the plot shows, some columns have no missing values. 
+
+## Cleaning Data
+
+We need to remove variables with missing values from both training and testing sets. And finally have clean training and testing sets with same variables. 
+
+```{r}
+trainingClean <- training[, colSums(is.na(training))<nrow(training)*0.60]
+dim(trainingClean)
+testingClean <- testing[, colSums(is.na(testing))<nrow(testing)*0.60]
+dim(testingClean)
+trainingClean2 <- trainingClean[,names(trainingClean) %in% names(testingClean)]
+trainingClean2$classe <- trainingClean$classe
+```
+
+The first 7 variables have no effect on our prediction. Lets remove them.
+
+```{r}
+trainingClean2 <- trainingClean2[,8:60]
+testingClean <- testingClean[,8:60]
+```
+
+Now we have training and test data sets with 52 predictors and one output named ```classe```. 
+
+## Prediction Models
+
+For our discrete prediction roblem, we will use 2 algorithms that give usually better results in these kindof prediction problems: Random Forests and Generalized Boosting algorithms. We will use 3-fold cross-validation.
+
+### Prediction with Random Forests
+
+```{r}
+# Apply Random Forest
+inTrain <- createDataPartition(trainingClean2$classe, p=0.6, list = F)
+myTraining <- trainingClean2[inTrain,]
+myTesting <- trainingClean2[-inTrain,]
+set.seed(38)
+controlRF <- trainControl(method = "cv", 3)
+modRF <- train(classe~., data=myTraining, method="rf", trControl=controlRF)
+predRF <- predict(modRF, myTesting)
+ConfMatRF <- confusionMatrix(predRF, myTesting$classe)
+ConfMatRF$table
+ConfMatRF$overall
+par(mfrow=c(1,1))
+plot(modRF$finalModel, main="RF Model Error vs Number of Trees")
+```
+
+### Prediction with Generalized Boosting
+
+```{r}
+# Apply Generalised Boosting
+modGBM <- train(classe~., data = myTraining, method="gbm", trControl=controlRF, verbose=F)
+predGBM <- predict(modGBM, myTesting)
+ConfMatGBM <- confusionMatrix(predGBM, myTesting$classe)
+ConfMatGBM$table
+ConfMatGBM$overall
+```
+
+Both methods present remarkable prediction performance. However Random Forests is slightly better with more than 99% accuracy. Thats why we use RF to predict the testing cases.
+
+```{r}
+# Predict the TEST data
+predTEST <- predict(modRF, testingClean)
+predTEST
+```
